@@ -30,6 +30,7 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
   const normalContainerRef = useRef<HTMLDivElement>(null);
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const isDestroyingRef = useRef<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 初始化 Cytoscape
@@ -41,10 +42,18 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
     }
 
     console.log('[GraphCanvas] 初始化 Cytoscape - isFullscreen:', isFullscreen);
+    
+    // 重置销毁标记
+    isDestroyingRef.current = false;
 
     // 创建 Cytoscape 实例
     cyRef.current = cytoscape({
       container: container,
+      // 禁用一些可能触发异步渲染的特性
+      hideEdgesOnViewport: false,
+      textureOnViewport: false,
+      motionBlur: false,
+      pixelRatio: 'auto',
       style: [
         {
           selector: "node",
@@ -190,16 +199,39 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
 
     return () => {
       console.log('[GraphCanvas] 清理 Cytoscape 实例');
+      isDestroyingRef.current = true; // 标记正在销毁
+      
       if (cyRef.current) {
+        const cyInstance = cyRef.current;
+        cyRef.current = null; // 立即置空，防止其他地方使用
+        
         try {
-          // 先移除事件监听器
-          cyRef.current.removeAllListeners();
+          // 检查实例是否已经被销毁
+          if (cyInstance.destroyed && cyInstance.destroyed()) {
+            console.log('[GraphCanvas] 实例已被销毁，跳过清理');
+            return;
+          }
+          
+          // 停止所有动画和布局（这会清除所有 requestAnimationFrame 回调）
+          cyInstance.stop();
+          
+          // 强制清空所有待处理的渲染任务
+          if (cyInstance._private && cyInstance._private.renderer) {
+            try {
+              cyInstance._private.renderer.haltRendering();
+            } catch (e) {
+              // 忽略，某些版本可能没有这个方法
+            }
+          }
+          
+          // 移除事件监听器
+          cyInstance.removeAllListeners();
+          
           // 然后销毁实例
-          cyRef.current.destroy();
+          cyInstance.destroy();
+          console.log('[GraphCanvas] 清理完成');
         } catch (error) {
           console.warn('[GraphCanvas] 清理时出错:', error);
-        } finally {
-          cyRef.current = null;
         }
       }
     };
@@ -208,7 +240,7 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
   // 更新图数据
   useEffect(() => {
     // 等待 Cytoscape 实例初始化完成
-    if (!cyRef.current) {
+    if (!cyRef.current || isDestroyingRef.current) {
       console.log('[GraphCanvas] 等待 Cytoscape 初始化...');
       return;
     }
@@ -244,6 +276,7 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
     }
 
     const cy = cyRef.current;
+    let isCancelled = false;
 
     try {
       // 批量更新，减少重绘
@@ -278,28 +311,38 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
       // 添加元素
       cy.add(elements);
       
-      // 结束批量更新
+      // 结束批量更新（这会触发渲染循环）
       cy.endBatch();
+      
+      // 立即停止所有正在运行的动画和布局
+      cy.stop();
 
-      // 应用布局（对于只有节点没有边的情况，使用grid布局更合适）
-      const layoutName = graph.edges.length > 0 ? "cose" : "grid";
-      cy.layout({
-        name: layoutName,
-        animate: true,
-        animationDuration: 500,
-        nodeRepulsion: 8000,
-        idealEdgeLength: 100,
-        padding: 50,
-        rows: layoutName === "grid" ? Math.ceil(Math.sqrt(graph.nodes.length)) : undefined,
-      }).run();
+      // 使用 preset 布局手动计算位置，避免任何异步操作
+      const nodes = cy.nodes();
+      const nodeCount = nodes.length;
+      const radius = Math.max(150, nodeCount * 15);
+      const angleStep = (2 * Math.PI) / Math.max(nodeCount, 1);
+      
+      // 手动设置每个节点的位置（圆形布局）
+      nodes.forEach((node: any, index: number) => {
+        const angle = index * angleStep;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        node.position({ x, y });
+      });
 
-      console.log('[GraphCanvas] 布局已应用:', layoutName);
+      console.log('[GraphCanvas] 布局已应用: manual-circle');
 
-      // 适应视图
-      setTimeout(() => {
-        cy.fit(undefined, 50);
-        console.log('[GraphCanvas] 视图已适应');
-      }, 600);
+      // 立即适应视图，不使用任何异步操作
+      try {
+        if (!isCancelled && !isDestroyingRef.current && cyRef.current === cy && !cy.destroyed()) {
+          cy.fit(undefined, 50);
+          console.log('[GraphCanvas] 视图已适应');
+        }
+      } catch (fitError) {
+        // 捕获 fit 时可能的错误（如果实例正在被销毁）
+        console.warn('[GraphCanvas] 适应视图时出错:', fitError);
+      }
     } catch (error) {
       console.error('[GraphCanvas] 更新图数据时出错:', error);
       // 即使出错也要结束批量更新
@@ -309,50 +352,66 @@ export function GraphCanvas({ graph, highlight, onNodeClick }: GraphCanvasProps)
         // 忽略
       }
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [graph, isFullscreen]);
 
   // 更新高亮
   useEffect(() => {
-    if (!cyRef.current) return;
+    if (!cyRef.current || isDestroyingRef.current) return;
 
     const cy = cyRef.current;
 
-    // 移除之前的高亮
-    cy.elements().removeClass("highlighted dimmed");
-
-    if (highlight && (highlight.nodeIds.length > 0 || highlight.edgeIds.length > 0)) {
-      // 高亮指定的节点和边
-      const highlightedElements = cy.collection();
-
-      highlight.nodeIds.forEach((nodeId) => {
-        const node = cy.getElementById(nodeId);
-        if (node.length > 0) {
-          highlightedElements.merge(node);
-        }
-      });
-
-      highlight.edgeIds.forEach((edgeId) => {
-        const edge = cy.getElementById(edgeId);
-        if (edge.length > 0) {
-          highlightedElements.merge(edge);
-        }
-      });
-
-      if (highlightedElements.length > 0) {
-        highlightedElements.addClass("highlighted");
-
-        // 将其他元素变暗
-        cy.elements().not(highlightedElements).addClass("dimmed");
-
-        // 聚焦到高亮元素
-        cy.animate({
-          fit: {
-            eles: highlightedElements,
-            padding: 100,
-          },
-          duration: 500,
-        });
+    try {
+      // 检查实例是否有效
+      if (cy.destroyed && cy.destroyed()) {
+        return;
       }
+
+      // 移除之前的高亮
+      cy.elements().removeClass("highlighted dimmed");
+
+      if (highlight && (highlight.nodeIds.length > 0 || highlight.edgeIds.length > 0)) {
+        // 高亮指定的节点和边
+        const highlightedElements = cy.collection();
+
+        highlight.nodeIds.forEach((nodeId) => {
+          const node = cy.getElementById(nodeId);
+          if (node.length > 0) {
+            highlightedElements.merge(node);
+          }
+        });
+
+        highlight.edgeIds.forEach((edgeId) => {
+          const edge = cy.getElementById(edgeId);
+          if (edge.length > 0) {
+            highlightedElements.merge(edge);
+          }
+        });
+
+        if (highlightedElements.length > 0) {
+          highlightedElements.addClass("highlighted");
+
+          // 将其他元素变暗
+          cy.elements().not(highlightedElements).addClass("dimmed");
+
+          // 检查实例仍然有效才执行动画
+          if (!isDestroyingRef.current && cyRef.current === cy && (!cy.destroyed || !cy.destroyed())) {
+            // 聚焦到高亮元素
+            cy.animate({
+              fit: {
+                eles: highlightedElements,
+                padding: 100,
+              },
+              duration: 500,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[GraphCanvas] 更新高亮时出错:', error);
     }
   }, [highlight]);
 

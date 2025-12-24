@@ -18,6 +18,11 @@ interface QueryResultPanelProps {
 export function QueryResultPanel({ result, onNodeClick }: QueryResultPanelProps) {
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
+  // 当 result 变化时，重置展开状态
+  React.useEffect(() => {
+    setExpandedItems(new Set());
+  }, [result]);
+
   if (!result || !result.medicines || result.medicines.length === 0) {
     return null;
   }
@@ -60,10 +65,13 @@ export function QueryResultPanel({ result, onNodeClick }: QueryResultPanelProps)
             const contentPreview = hasContent 
               ? medicine.content.substring(0, 150) 
               : "无内容";
+            
+            // 确保唯一的 key
+            const uniqueKey = medicine.doc_id ? `medicine-${medicine.doc_id}` : `medicine-idx-${index}`;
 
             return (
               <div
-                key={medicine.doc_id || index}
+                key={uniqueKey}
                 className="rounded-md border bg-white"
               >
                 {/* 标题栏 */}
@@ -153,18 +161,21 @@ export function QueryResultPanel({ result, onNodeClick }: QueryResultPanelProps)
                         <div>
                           <h4 className="mb-2 text-sm font-semibold">引用的通则 ({medicine.refersTo.length})：</h4>
                           <div className="space-y-2">
-                            {medicine.refersTo.map((ref: any, refIdx: number) => (
-                              <button
-                                key={refIdx}
-                                onClick={() => onNodeClick?.(ref.doc_id)}
-                                className="w-full rounded border bg-blue-50 p-2 text-left text-xs hover:bg-blue-100"
-                              >
-                                <div className="font-medium text-blue-900">{ref.name}</div>
-                                {ref.category && (
-                                  <div className="text-blue-700">{ref.category}</div>
-                                )}
-                              </button>
-                            ))}
+                            {medicine.refersTo.map((ref: any, refIdx: number) => {
+                              const refKey = ref.doc_id ? `ref-${ref.doc_id}` : `ref-${index}-${refIdx}`;
+                              return (
+                                <button
+                                  key={refKey}
+                                  onClick={() => onNodeClick?.(ref.doc_id)}
+                                  className="w-full rounded border bg-blue-50 p-2 text-left text-xs hover:bg-blue-100"
+                                >
+                                  <div className="font-medium text-blue-900">{ref.name}</div>
+                                  {ref.category && (
+                                    <div className="text-blue-700">{ref.category}</div>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -174,15 +185,18 @@ export function QueryResultPanel({ result, onNodeClick }: QueryResultPanelProps)
                         <div>
                           <h4 className="mb-2 text-sm font-semibold">同类药品 ({medicine.relatedByCategory.length})：</h4>
                           <div className="flex flex-wrap gap-2">
-                            {medicine.relatedByCategory.map((related: any, relIdx: number) => (
-                              <button
-                                key={relIdx}
-                                onClick={() => onNodeClick?.(related.doc_id)}
-                                className="rounded bg-green-100 px-2 py-1 text-xs text-green-800 hover:bg-green-200"
-                              >
-                                {related.name}
-                              </button>
-                            ))}
+                            {medicine.relatedByCategory.map((related: any, relIdx: number) => {
+                              const relatedKey = related.doc_id ? `related-${related.doc_id}` : `related-${index}-${relIdx}`;
+                              return (
+                                <button
+                                  key={relatedKey}
+                                  onClick={() => onNodeClick?.(related.doc_id)}
+                                  className="rounded bg-green-100 px-2 py-1 text-xs text-green-800 hover:bg-green-200"
+                                >
+                                  {related.name}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

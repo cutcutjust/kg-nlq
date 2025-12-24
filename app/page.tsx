@@ -211,8 +211,9 @@ export default function HomePage() {
               )}
 
               {/* 查询结果面板（原始数据） */}
-              {queryResult && (
+              {queryResult && queryResult.medicines && queryResult.medicines.length > 0 && (
                 <QueryResultPanel
+                  key={`result-${queryResult.medicines[0]?.doc_id || Date.now()}`}
                   result={queryResult}
                   onNodeClick={handleNodeClick}
                 />
@@ -224,6 +225,7 @@ export default function HomePage() {
               {/* 证据列表 */}
               {response && response.evidence.length > 0 && (
                 <EvidenceList
+                  key={`evidence-${response.evidence.length}-${response.evidence[0]?.nodeIds?.[0] || ''}`}
                   evidence={response.evidence}
                   onEvidenceClick={(highlightInfo) => {
                     const index = response.evidence.findIndex(
@@ -245,6 +247,7 @@ export default function HomePage() {
           {/* 下半部分：图可视化 */}
           <div className="flex-1 p-4">
             <GraphCanvas
+              key={`graph-${response?.graph?.nodes?.length || 0}-${response?.graph?.nodes?.[0]?.id || ''}`}
               graph={response?.graph}
               highlight={highlight}
               onNodeClick={handleNodeClick}

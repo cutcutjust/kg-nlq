@@ -53,14 +53,14 @@ export function EvidenceList({
                   : "hover:border-primary/50"
               }`}
             >
-              <button
+              <div
                 onClick={() =>
                   onEvidenceClick({
                     nodeIds: item.nodeIds,
                     edgeIds: item.edgeIds,
                   })
                 }
-                className="w-full p-3 text-left"
+                className="w-full cursor-pointer p-3 text-left"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -73,9 +73,9 @@ export function EvidenceList({
                           点击高亮节点
                         </span>
                       </div>
-                      <button
+                      <div
                         onClick={(e) => toggleExpand(index, e)}
-                        className="flex items-center text-xs text-primary hover:underline"
+                        className="flex cursor-pointer items-center text-xs text-primary hover:underline"
                       >
                         {expandedIndex === index ? (
                           <>
@@ -88,7 +88,7 @@ export function EvidenceList({
                             详情
                           </>
                         )}
-                      </button>
+                      </div>
                     </div>
                     <p className={`text-sm leading-relaxed ${expandedIndex === index ? "" : "line-clamp-2"}`}>
                       {item.text}
@@ -107,7 +107,7 @@ export function EvidenceList({
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
 
               {/* 展开的详细信息 */}
               {expandedIndex === index && (
