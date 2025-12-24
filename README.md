@@ -72,6 +72,7 @@ NLQ_MAX_EDGES=120
 4. 获取 API Key
 
 **推荐模型**：
+
 - `qwen-turbo`：快速响应，适合实时查询
 - `qwen-plus`：平衡性能，适合日常使用
 - `qwen-max`：最强性能，适合复杂查询
@@ -120,6 +121,7 @@ npm run dev
 #### 问答模式（QA）
 
 输入问题：
+
 - "阿司匹林治疗什么疾病？"
 - "有哪些研究人员在研究心脏病药物？"
 - "布洛芬是什么？"
@@ -127,6 +129,7 @@ npm run dev
 #### 浏览模式（Browse）
 
 输入问题：
+
 - "展示阿司匹林的关系网络"
 - "浏览心脏病相关的子图"
 
@@ -233,6 +236,7 @@ export const typeDefs = `
 **原因**：LLM 可能不熟悉你的 schema。
 
 **解决**：
+
 - 确保 `schemaDigest.ts` 中的 schema 描述清晰
 - 在提示词中添加更多查询示例
 - 尝试使用 `qwen-plus` 或 `qwen-max` 模型
@@ -250,6 +254,7 @@ NLQ_MAX_EDGES=200    # 最多显示的边数
 ### 3. Neo4j 连接失败？
 
 检查：
+
 - Neo4j 服务是否启动
 - URI、用户名、密码是否正确
 - 防火墙是否开放 7687 端口
@@ -279,6 +284,7 @@ this.timeout = options?.timeout ?? 120000; // 增加到 120 秒
 ## 安全注意事项
 
 ✅ **已实现的安全措施**：
+
 - 用户输入不直接拼接到查询（使用变量）
 - 禁止 mutation 操作
 - 强制结果数量限制
@@ -286,6 +292,7 @@ this.timeout = options?.timeout ?? 120000; // 增加到 120 秒
 - 危险模式检测
 
 ⚠️ **建议的额外措施**：
+
 - 使用只读 Neo4j 用户
 - 实现速率限制（API 层）
 - 添加用户认证
@@ -326,23 +333,15 @@ EXPOSE 3000
 CMD ["npm", "start"]
 ```
 
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
 ## 许可
 
-MIT License
-
-## 联系方式
-
-如有问题，请提交 GitHub Issue。
+GNU AGPL v3
 
 ---
 
 **Powered by**:
+
 - [Next.js](https://nextjs.org/)
 - [Neo4j](https://neo4j.com/)
 - [通义千问](https://help.aliyun.com/zh/model-studio/)
 - [Cytoscape.js](https://js.cytoscape.org/)
-
