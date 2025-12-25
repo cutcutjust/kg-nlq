@@ -127,3 +127,69 @@ export interface ChatHistoryItem {
   timestamp: number;
 }
 
+// ============== 管理功能相关类型 ==============
+
+/** Neo4j 节点（管理用） */
+export interface Neo4jNode {
+  identity: string; // Neo4j 内部ID
+  labels: string[]; // 节点标签
+  properties: Record<string, any>; // 节点属性
+}
+
+/** Neo4j 关系（管理用） */
+export interface Neo4jRelationship {
+  identity: string; // 关系内部ID
+  type: string; // 关系类型
+  startNodeId: string; // 起始节点ID
+  endNodeId: string; // 结束节点ID
+  properties: Record<string, any>; // 关系属性
+}
+
+/** 创建节点请求 */
+export interface CreateNodeRequest {
+  labels: string[]; // 节点标签（至少一个）
+  properties: Record<string, any>; // 节点属性
+}
+
+/** 更新节点请求 */
+export interface UpdateNodeRequest {
+  identity: string; // 节点ID
+  properties: Record<string, any>; // 要更新的属性
+}
+
+/** 删除节点请求 */
+export interface DeleteNodeRequest {
+  identity: string; // 节点ID
+  detachDelete?: boolean; // 是否同时删除关联关系
+}
+
+/** 创建关系请求 */
+export interface CreateRelationshipRequest {
+  startNodeId: string; // 起始节点ID
+  endNodeId: string; // 结束节点ID
+  type: string; // 关系类型
+  properties?: Record<string, any>; // 关系属性
+}
+
+/** 更新关系请求 */
+export interface UpdateRelationshipRequest {
+  identity: string; // 关系ID
+  properties: Record<string, any>; // 要更新的属性
+}
+
+/** 删除关系请求 */
+export interface DeleteRelationshipRequest {
+  identity: string; // 关系ID
+}
+
+/** 查询节点响应 */
+export interface QueryNodesResponse {
+  nodes: Neo4jNode[];
+  total: number;
+}
+
+/** 查询关系响应 */
+export interface QueryRelationshipsResponse {
+  relationships: Neo4jRelationship[];
+  total: number;
+}
