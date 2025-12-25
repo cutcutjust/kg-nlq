@@ -165,11 +165,37 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // 允许空属性 - 如果属性为空，直接返回当前节点
     if (!properties || Object.keys(properties).length === 0) {
-      return NextResponse.json(
-        { error: "更新属性不能为空" },
-        { status: 400 }
-      );
+      // 直接查询并返回节点
+      const query = `
+        MATCH (n)
+        WHERE id(n) = $id
+        RETURN n
+      `;
+
+      const result = await session.run(query, {
+        id: neo4j.int(parseInt(identity)),
+      });
+
+      if (result.records.length === 0) {
+        return NextResponse.json(
+          { error: "节点不存在" },
+          { status: 404 }
+        );
+      }
+
+      const node = result.records[0].get("n");
+
+      return NextResponse.json({
+        success: true,
+        message: "节点属性为空，无需更新",
+        node: {
+          identity: node.identity.toString(),
+          labels: node.labels,
+          properties: convertNeo4jValue(node.properties),
+        },
+      });
     }
 
     // 构建SET语句

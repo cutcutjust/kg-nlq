@@ -9,7 +9,7 @@ import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Send } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { QueryIntent, ChatHistoryItem } from "@/lib/types";
 import { formatTimestamp, truncateText } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ interface ChatPanelProps {
   isLoading: boolean;
   history: ChatHistoryItem[];
   onHistorySelect: (item: ChatHistoryItem) => void;
+  onClearHistory?: () => void;
 }
 
 export function ChatPanel({
@@ -25,6 +26,7 @@ export function ChatPanel({
   isLoading,
   history,
   onHistorySelect,
+  onClearHistory,
 }: ChatPanelProps) {
   const [question, setQuestion] = useState("");
   // 固定为 browse 模式，因为现在都显示图谱
@@ -106,7 +108,21 @@ export function ChatPanel({
       {/* 历史记录 */}
       <Card className="flex flex-1 flex-col overflow-hidden">
         <CardHeader className="flex-shrink-0">
-          <CardTitle className="text-lg">历史记录</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">历史记录</CardTitle>
+            {history.length > 0 && onClearHistory && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearHistory}
+                className="h-8 text-xs text-muted-foreground hover:text-destructive"
+                title="清空历史记录"
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                清空
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
           {history.length === 0 ? (

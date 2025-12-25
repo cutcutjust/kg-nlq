@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogHeader,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -52,6 +58,11 @@ export function RelationshipManager() {
   const [searchResults, setSearchResults] = useState<RelationshipWithNodes[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalRelationships, setTotalRelationships] = useState<number>(0);
+  const [pageSize] = useState<number>(20); // 每页显示20条
+
   // 表单状态
   const [formStartNodeId, setFormStartNodeId] = useState<string>("");
   const [formEndNodeId, setFormEndNodeId] = useState<string>("");
@@ -65,8 +76,16 @@ export function RelationshipManager() {
 
   // 加载关系
   useEffect(() => {
+    setCurrentPage(1); // 切换类型时重置到第一页
     loadRelationships();
   }, [selectedType]);
+
+  // 页码变化时加载数据
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadRelationships();
+    }
+  }, [currentPage]);
 
   const loadTypes = async () => {
     try {
@@ -85,10 +104,11 @@ export function RelationshipManager() {
     setError(null);
 
     try {
+      const skip = (currentPage - 1) * pageSize;
       const url =
         selectedType === "all"
-          ? "/api/admin/relationships?limit=100"
-          : `/api/admin/relationships?type=${selectedType}&limit=100`;
+          ? `/api/admin/relationships?limit=${pageSize}&skip=${skip}`
+          : `/api/admin/relationships?type=${selectedType}&limit=${pageSize}&skip=${skip}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -96,6 +116,8 @@ export function RelationshipManager() {
       if (data.error) {
         throw new Error(data.error);
       }
+
+      setTotalRelationships(data.total || 0);
 
       // 获取关系及其节点信息
       const relsWithInfo = await Promise.all(
@@ -301,7 +323,17 @@ export function RelationshipManager() {
     setSearchQuery("");
     setSearchResults([]);
     setIsSearching(false);
+    setCurrentPage(1);
   };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const totalPages = Math.ceil(totalRelationships / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalRelationships);
 
   const getNodeDisplayName = (nodeInfo: any) => {
     if (!nodeInfo) return "未知节点";
@@ -398,104 +430,132 @@ export function RelationshipManager() {
         </div>
       )}
 
-      {/* 创建/编辑表单 */}
-      {(showCreateForm || editingRelationship) && (
-        <Card className="p-4">
-          <h3 className="mb-3 text-lg font-semibold">
-            {editingRelationship ? "编辑关系" : "创建新关系"}
-          </h3>
+      {/* 创建表单对话框 */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogHeader onClose={() => setShowCreateForm(false)}>
+          创建新关系
+        </DialogHeader>
+        <DialogContent>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              起始节点ID
+            </label>
+            <Input
+              placeholder="例如: 123"
+              value={formStartNodeId}
+              onChange={(e) => setFormStartNodeId(e.target.value)}
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              💡 提示：可以在节点管理页面查看节点ID
+            </div>
+          </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              结束节点ID
+            </label>
+            <Input
+              placeholder="例如: 456"
+              value={formEndNodeId}
+              onChange={(e) => setFormEndNodeId(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              关系类型
+            </label>
+            <Input
+              placeholder="例如: KNOWS, WORKS_WITH"
+              value={formType}
+              onChange={(e) => setFormType(e.target.value)}
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              建议使用全大写，单词间用下划线
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              属性（JSON格式，可选）
+            </label>
+            <textarea
+              className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+              rows={6}
+              placeholder='{"since": "2020", "weight": 0.8}'
+              value={formProperties}
+              onChange={(e) => setFormProperties(e.target.value)}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCreateForm(false)}>
+            取消
+          </Button>
+          <Button onClick={handleCreate}>创建</Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* 编辑表单对话框 */}
+      <Dialog
+        open={!!editingRelationship}
+        onOpenChange={(open) => !open && cancelEdit()}
+      >
+        <DialogHeader onClose={cancelEdit}>编辑关系</DialogHeader>
+        <DialogContent>
           {editingRelationship && (
-            <div className="mb-3 rounded bg-blue-50 p-3 text-sm">
-              <div className="mb-2 flex items-center space-x-1 text-blue-900">
-                <Info className="h-4 w-4" />
-                <span className="font-semibold">注意：</span>
-              </div>
-              <div className="space-y-1 text-blue-800">
-                <div>关系ID: {editingRelationship.identity}</div>
-                <div>类型: <span className="font-semibold">{editingRelationship.type}</span></div>
-                <div className="flex items-center space-x-2">
-                  <span>起始: {getNodeDisplayName(editingRelationship.startNodeInfo)}</span>
-                  <ArrowRight className="h-3 w-3" />
-                  <span>结束: {getNodeDisplayName(editingRelationship.endNodeInfo)}</span>
+            <>
+              <div className="rounded bg-blue-50 p-3 text-sm">
+                <div className="mb-2 flex items-center space-x-1 text-blue-900">
+                  <Info className="h-4 w-4" />
+                  <span className="font-semibold">关系信息</span>
                 </div>
-                <div className="mt-2 text-xs">
+                <div className="space-y-1 text-blue-800">
+                  <div>
+                    关系ID: {editingRelationship.identity}
+                  </div>
+                  <div>
+                    类型:{" "}
+                    <span className="font-semibold">
+                      {editingRelationship.type}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>
+                      起始: {getNodeDisplayName(editingRelationship.startNodeInfo)}
+                    </span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span>
+                      结束: {getNodeDisplayName(editingRelationship.endNodeInfo)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-blue-600">
                   💡 关系的类型和方向不能修改。如需更改，请删除此关系并创建新关系。
                 </div>
               </div>
-            </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  属性（JSON格式）
+                </label>
+                <textarea
+                  className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+                  rows={8}
+                  value={formProperties}
+                  onChange={(e) => setFormProperties(e.target.value)}
+                />
+              </div>
+            </>
           )}
-
-          <div className="space-y-3">
-            {!editingRelationship && (
-              <>
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    起始节点ID
-                  </label>
-                  <Input
-                    placeholder="例如: 123"
-                    value={formStartNodeId}
-                    onChange={(e) => setFormStartNodeId(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    结束节点ID
-                  </label>
-                  <Input
-                    placeholder="例如: 456"
-                    value={formEndNodeId}
-                    onChange={(e) => setFormEndNodeId(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    关系类型
-                  </label>
-                  <Input
-                    placeholder="例如: KNOWS, WORKS_WITH"
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value)}
-                  />
-                </div>
-              </>
-            )}
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                属性（JSON格式）
-              </label>
-              <textarea
-                className="w-full rounded-md border px-3 py-2 font-mono text-sm"
-                rows={6}
-                placeholder='{"since": "2020", "weight": 0.8}'
-                value={formProperties}
-                onChange={(e) => setFormProperties(e.target.value)}
-              />
-            </div>
-
-            <div className="flex space-x-2">
-              <Button
-                onClick={editingRelationship ? handleUpdate : handleCreate}
-              >
-                {editingRelationship ? "保存" : "创建"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  cancelEdit();
-                }}
-              >
-                取消
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={cancelEdit}>
+            取消
+          </Button>
+          <Button onClick={handleUpdate}>保存</Button>
+        </DialogFooter>
+      </Dialog>
 
       {/* 关系列表 */}
       <div className="space-y-2">
@@ -632,6 +692,76 @@ export function RelationshipManager() {
           })
         )}
       </div>
+
+      {/* 分页控件 */}
+      {!isSearching && totalPages > 1 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              显示 {startIndex} - {endIndex} / 共 {totalRelationships} 个关系
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+              >
+                首页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </Button>
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className="min-w-[40px]"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                末页
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

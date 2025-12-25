@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogHeader,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -36,6 +42,11 @@ export function NodeManager() {
   const [searchResults, setSearchResults] = useState<Neo4jNode[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalNodes, setTotalNodes] = useState<number>(0);
+  const [pageSize] = useState<number>(20); // 每页显示20条
+
   // 表单状态
   const [formLabels, setFormLabels] = useState<string>("");
   const [formProperties, setFormProperties] = useState<string>("");
@@ -47,8 +58,16 @@ export function NodeManager() {
 
   // 加载节点
   useEffect(() => {
+    setCurrentPage(1); // 切换标签时重置到第一页
     loadNodes();
   }, [selectedLabel]);
+
+  // 页码变化时加载数据
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadNodes();
+    }
+  }, [currentPage]);
 
   const loadLabels = async () => {
     try {
@@ -67,10 +86,11 @@ export function NodeManager() {
     setError(null);
 
     try {
+      const skip = (currentPage - 1) * pageSize;
       const url =
         selectedLabel === "all"
-          ? "/api/admin/nodes?limit=100"
-          : `/api/admin/nodes?label=${selectedLabel}&limit=100`;
+          ? `/api/admin/nodes?limit=${pageSize}&skip=${skip}`
+          : `/api/admin/nodes?label=${selectedLabel}&limit=${pageSize}&skip=${skip}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -80,6 +100,7 @@ export function NodeManager() {
       }
 
       setNodes(data.nodes || []);
+      setTotalNodes(data.total || 0);
     } catch (err: any) {
       setError(err.message || "加载节点失败");
     } finally {
@@ -263,7 +284,17 @@ export function NodeManager() {
     setSearchQuery("");
     setSearchResults([]);
     setIsSearching(false);
+    setCurrentPage(1);
   };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const totalPages = Math.ceil(totalNodes / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalNodes);
 
   // 截断长文本
   const truncateText = (text: string, maxLength: number = 100) => {
@@ -374,66 +405,82 @@ export function NodeManager() {
         </div>
       )}
 
-      {/* 创建/编辑表单 */}
-      {(showCreateForm || editingNode) && (
-        <Card className="p-4">
-          <h3 className="mb-3 text-lg font-semibold">
-            {editingNode ? "编辑节点" : "创建新节点"}
-          </h3>
+      {/* 创建表单对话框 */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogHeader onClose={() => setShowCreateForm(false)}>
+          创建新节点
+        </DialogHeader>
+        <DialogContent>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              标签（逗号分隔）
+            </label>
+            <Input
+              placeholder="例如: Person,Researcher"
+              value={formLabels}
+              onChange={(e) => setFormLabels(e.target.value)}
+            />
+          </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              属性（JSON格式）
+            </label>
+            <textarea
+              className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+              rows={8}
+              placeholder='{"name": "张三", "age": 30}'
+              value={formProperties}
+              onChange={(e) => setFormProperties(e.target.value)}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCreateForm(false)}>
+            取消
+          </Button>
+          <Button onClick={handleCreate}>创建</Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* 编辑表单对话框 */}
+      <Dialog open={!!editingNode} onOpenChange={(open) => !open && cancelEdit()}>
+        <DialogHeader onClose={cancelEdit}>编辑节点</DialogHeader>
+        <DialogContent>
           {editingNode && (
-            <div className="mb-3 text-sm text-muted-foreground">
-              <div>节点ID: {editingNode.identity}</div>
-              <div>标签: {editingNode.labels.join(", ")}</div>
-            </div>
-          )}
+            <>
+              <div className="rounded bg-blue-50 p-3 text-sm">
+                <div className="mb-2 text-blue-900 font-semibold">节点信息</div>
+                <div className="space-y-1 text-blue-800">
+                  <div>节点ID: {editingNode.identity}</div>
+                  <div>标签: {editingNode.labels.join(", ")}</div>
+                </div>
+                <div className="mt-2 text-xs text-blue-600">
+                  💡 节点的标签不能修改，只能修改属性
+                </div>
+              </div>
 
-          <div className="space-y-3">
-            {!editingNode && (
               <div>
                 <label className="mb-1 block text-sm font-medium">
-                  标签（逗号分隔）
+                  属性（JSON格式）
                 </label>
-                <Input
-                  placeholder="例如: Person,Researcher"
-                  value={formLabels}
-                  onChange={(e) => setFormLabels(e.target.value)}
+                <textarea
+                  className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+                  rows={10}
+                  value={formProperties}
+                  onChange={(e) => setFormProperties(e.target.value)}
                 />
               </div>
-            )}
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                属性（JSON格式）
-              </label>
-              <textarea
-                className="w-full rounded-md border px-3 py-2 font-mono text-sm"
-                rows={6}
-                placeholder='{"name": "张三", "age": 30}'
-                value={formProperties}
-                onChange={(e) => setFormProperties(e.target.value)}
-              />
-            </div>
-
-            <div className="flex space-x-2">
-              <Button
-                onClick={editingNode ? handleUpdate : handleCreate}
-              >
-                {editingNode ? "保存" : "创建"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  cancelEdit();
-                }}
-              >
-                取消
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
+            </>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={cancelEdit}>
+            取消
+          </Button>
+          <Button onClick={handleUpdate}>保存</Button>
+        </DialogFooter>
+      </Dialog>
 
       {/* 节点列表 */}
       <div className="space-y-2">
@@ -549,6 +596,76 @@ export function NodeManager() {
           })
         )}
       </div>
+
+      {/* 分页控件 */}
+      {!isSearching && totalPages > 1 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              显示 {startIndex} - {endIndex} / 共 {totalNodes} 个节点
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+              >
+                首页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </Button>
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className="min-w-[40px]"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                末页
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

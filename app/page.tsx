@@ -5,7 +5,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { AnswerPanel } from "@/components/AnswerPanel";
@@ -22,6 +22,9 @@ import {
 } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 
+// localStorage 键名
+const HISTORY_STORAGE_KEY = "kg-nlq-history";
+
 export default function HomePage() {
   const [response, setResponse] = useState<NLQResponse | null>(null);
   const [queryResult, setQueryResult] = useState<any>(null);
@@ -34,6 +37,34 @@ export default function HomePage() {
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+
+  // 从 localStorage 加载历史记录
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        setHistory(parsedHistory);
+        console.log("✅ 从本地存储加载了", parsedHistory.length, "条历史记录");
+      }
+    } catch (error) {
+      console.error("❌ 加载历史记录失败:", error);
+      // 如果加载失败，清空损坏的数据
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+    }
+  }, []);
+
+  // 保存历史记录到 localStorage（当 history 更新时）
+  useEffect(() => {
+    if (history.length > 0) {
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+        console.log("💾 已保存", history.length, "条历史记录到本地存储");
+      } catch (error) {
+        console.error("❌ 保存历史记录失败:", error);
+      }
+    }
+  }, [history]);
 
   /**
    * 提交查询（分阶段处理）
@@ -180,6 +211,17 @@ export default function HomePage() {
     setError(null);
   };
 
+  /**
+   * 清空历史记录
+   */
+  const handleClearHistory = () => {
+    if (confirm("确定要清空所有历史记录吗？此操作不可恢复。")) {
+      setHistory([]);
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+      console.log("🗑️ 已清空历史记录");
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
       {/* 顶部导航栏 */}
@@ -194,6 +236,7 @@ export default function HomePage() {
             isLoading={isLoading}
             history={history}
             onHistorySelect={handleHistorySelect}
+            onClearHistory={handleClearHistory}
           />
         </div>
 

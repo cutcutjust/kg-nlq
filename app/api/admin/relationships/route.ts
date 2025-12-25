@@ -174,11 +174,41 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // 允许空属性 - 如果属性为空，直接返回当前关系
     if (!properties || Object.keys(properties).length === 0) {
-      return NextResponse.json(
-        { error: "更新属性不能为空" },
-        { status: 400 }
-      );
+      // 直接查询并返回关系
+      const query = `
+        MATCH ()-[r]->()
+        WHERE id(r) = $id
+        RETURN r, startNode(r) as a, endNode(r) as b
+      `;
+
+      const result = await session.run(query, {
+        id: neo4j.int(parseInt(identity)),
+      });
+
+      if (result.records.length === 0) {
+        return NextResponse.json(
+          { error: "关系不存在" },
+          { status: 404 }
+        );
+      }
+
+      const rel = result.records[0].get("r");
+      const startNode = result.records[0].get("a");
+      const endNode = result.records[0].get("b");
+
+      return NextResponse.json({
+        success: true,
+        message: "关系属性为空，无需更新",
+        relationship: {
+          identity: rel.identity.toString(),
+          type: rel.type,
+          startNodeId: startNode.identity.toString(),
+          endNodeId: endNode.identity.toString(),
+          properties: convertNeo4jValue(rel.properties),
+        },
+      });
     }
 
     // 构建SET语句
